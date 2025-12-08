@@ -76,13 +76,6 @@ function SmartRuler_TwoOptions
     measLines = gobjects(0);
     measTexts = gobjects(0);
 
-    % ???????? ???? ?????? ???????
-    zoomFig  = [];
-    zoomAx   = [];
-    clickXs  = [];
-    clickYs  = [];
-    isMeasuring = false;
-
     % ================== Reference Callbacks ==================
 
     function loadRefCallback(~,~)
@@ -107,9 +100,13 @@ function SmartRuler_TwoOptions
             return;
         end
 
-        axes(axRef);
-        title(axRef,'Click two points on the known-length object','Color','y');
-        [x,y] = ginput(2);
+        set(statusText,'String','Status: Select two points on reference (with zoom).');
+        [x,y,ok] = pickTwoPointsWithZoom(axRef, refImg, 'Reference: select 2 points');
+        if ~ok
+            set(statusText,'String','Status: Manual reference cancelled.');
+            title(axRef,'Reference Image','Color','w');
+            return;
+        end
 
         dx = x(2)-x(1);
         dy = y(2)-y(1);
@@ -121,6 +118,7 @@ function SmartRuler_TwoOptions
             return;
         end
 
+        axes(axRef);
         hold(axRef,'on');
         plot(axRef,x,y,'y-','LineWidth',2);
         plot(axRef,x,y,'yo','MarkerSize',6,'MarkerFaceColor','y');
@@ -165,10 +163,10 @@ function SmartRuler_TwoOptions
         names = {objs.name};
         lens  = [objs.length_cm];
 
-        [idx,ok] = listdlg('PromptString','Select the known object:', ...
+        [idx,okSel] = listdlg('PromptString','Select the known object:', ...
                            'ListString',names, ...
                            'SelectionMode','single');
-        if ~ok
+        if ~okSel
             set(statusText,'String','Status: Known object selection cancelled.');
             return;
         end
@@ -176,10 +174,14 @@ function SmartRuler_TwoOptions
         chosenName   = names{idx};
         chosenLength = lens(idx);
 
-        axes(axRef);
-        title(axRef,['Click two points along: ', chosenName], ...
-              'Color','y','Interpreter','none');
-        [x,y] = ginput(2);
+        msg = ['Reference (',chosenName,'): select 2 points'];
+        set(statusText,'String',['Status: ',msg]);
+        [x,y,ok] = pickTwoPointsWithZoom(axRef, refImg, msg);
+        if ~ok
+            set(statusText,'String','Status: Known object reference cancelled.');
+            title(axRef,'Reference Image','Color','w');
+            return;
+        end
 
         dx = x(2)-x(1);
         dy = y(2)-y(1);
@@ -191,6 +193,7 @@ function SmartRuler_TwoOptions
             return;
         end
 
+        axes(axRef);
         hold(axRef,'on');
         plot(axRef,x,y,'y-','LineWidth',2);
         plot(axRef,x,y,'yo','MarkerSize',6,'MarkerFaceColor','y');
@@ -274,118 +277,14 @@ function SmartRuler_TwoOptions
             set(statusText,'String','Status: Set reference first (manual / known object / A4).');
             return;
         end
-        if isMeasuring
-            set(statusText,'String','Status: Already measuring. Finish current measurement first.');
-            return;
-        end
 
-        axes(axMeas);
-        title(axMeas,'Click two points on the object to measure','Color','c');
-
-        % ???? ?????
-        if ~isempty(zoomFig) && isvalid(zoomFig)
-            delete(zoomFig);
-        end
-        zoomFig = figure('Name','Zoom','NumberTitle','off', ...
-                         'MenuBar','none','ToolBar','none', ...
-                         'Color','k','Position',[50 50 220 220]);
-        zoomAx = axes('Parent',zoomFig,'Position',[0 0 1 1]);
-
-        clickXs = [];
-        clickYs = [];
-        isMeasuring = true;
-
-        set(f,'WindowButtonMotionFcn',@updateZoom);
-        set(f,'WindowButtonDownFcn',@onFigureClick);
-        set(f,'Pointer','crosshair');
-
-        set(statusText,'String','Status: Move over measurement image and left-click two points.');
-    end
-
-    function onFigureClick(~,~)
-        if ~isMeasuring
-            return;
-        end
-
-        % ????? ?? ?????? ??? ????? ??? ???? ??????
-        hObj = hittest(f);
-        axParent = ancestor(hObj,'axes');
-        if isempty(axParent) || axParent ~= axMeas
-            return;
-        end
-
-        C = get(axMeas,'CurrentPoint');
-        cx = C(1,1);
-        cy = C(1,2);
-
-        xl = xlim(axMeas);
-        yl = ylim(axMeas);
-        if cx < xl(1) || cx > xl(2) || cy < yl(1) || cy > yl(2)
-            return;
-        end
-
-        clickXs(end+1) = cx;
-        clickYs(end+1) = cy;
-
-        if numel(clickXs) == 2
-            finishMeasurement();
-        end
-    end
-
-    function updateZoom(~,~)
-        if ~isMeasuring
-            return;
-        end
-        if isempty(measImg) || ~ishandle(axMeas) || isempty(zoomFig) || ~ishandle(zoomAx)
-            return;
-        end
-
-        C = get(axMeas,'CurrentPoint');
-        cx = round(C(1,1));
-        cy = round(C(1,2));
-
-        if cx<=0 || cy<=0 || cx>size(measImg,2) || cy>size(measImg,1)
-            return;
-        end
-
-        r = 25;
-        x1 = max(1,cx-r);  x2 = min(size(measImg,2),cx+r);
-        y1 = max(1,cy-r);  y2 = min(size(measImg,1),cy+r);
-
-        zoomCrop = measImg(y1:y2, x1:x2, :);
-        zoomCrop = imresize(zoomCrop,5);
-
-        axes(zoomAx);
-        imshow(zoomCrop);
-        hold(zoomAx,'on');
-
-        [hgt,wdt,~] = size(zoomCrop);
-        cxz = wdt/2;
-        cyz = hgt/2;
-        plot(zoomAx,[cxz-8 cxz+8],[cyz cyz],'r-','LineWidth',1.5);
-        plot(zoomAx,[cxz cxz],[cyz-8 cyz+8],'r-','LineWidth',1.5);
-
-        hold(zoomAx,'off');
-    end
-
-    function finishMeasurement()
-        % ????? ??? ?????? ??????
-        isMeasuring = false;
-        set(f,'WindowButtonMotionFcn','');
-        set(f,'WindowButtonDownFcn','');
-        set(f,'Pointer','arrow');
-        if ~isempty(zoomFig) && isvalid(zoomFig)
-            delete(zoomFig);
-        end
-
-        if numel(clickXs) < 2
+        set(statusText,'String','Status: Select two points on object (with zoom).');
+        [x,y,ok] = pickTwoPointsWithZoom(axMeas, measImg, 'Measurement: select 2 points');
+        if ~ok
             set(statusText,'String','Status: Measurement cancelled.');
             title(axMeas,'Measurement Image','Color','w');
             return;
         end
-
-        x = clickXs(1:2);
-        y = clickYs(1:2);
 
         dx = x(2)-x(1);
         dy = y(2)-y(1);
@@ -429,9 +328,6 @@ function SmartRuler_TwoOptions
     % ================== Misc Buttons ==================
 
     function undoLastCallback(~,~)
-        if isMeasuring
-            return; % ?? ???? ?????? ??????
-        end
         if measCount <= 0
             set(statusText,'String','Status: No measurements to undo.');
             return;
@@ -460,9 +356,6 @@ function SmartRuler_TwoOptions
     end
 
     function clearMeasurementsCallback(~,~)
-        if isMeasuring
-            return;
-        end
         measCount        = 0;
         resultTable.Data = {};
         deleteValid(measLines);
@@ -480,9 +373,6 @@ function SmartRuler_TwoOptions
     end
 
     function clearAllCallback(~,~)
-        if isMeasuring
-            return;
-        end
         refImg        = [];
         measImg       = [];
         pixelsPerUnit = NaN;
@@ -510,6 +400,132 @@ function SmartRuler_TwoOptions
         for k = 1:numel(h)
             if isgraphics(h(k))
                 delete(h(k));
+            end
+        end
+    end
+
+    % ================== Helper: Pick 2 Points With Zoom ==================
+    function [xSel,ySel,ok] = pickTwoPointsWithZoom(axTarget,imgTarget,msgTitle)
+        xSel = [];
+        ySel = [];
+        ok   = false;
+
+        if isempty(imgTarget) || ~ishandle(axTarget)
+            return;
+        end
+
+        % ????? ?????
+        zoomFig = figure('Name','Zoom','NumberTitle','off', ...
+                         'MenuBar','none','ToolBar','none', ...
+                         'Color','k','Position',[50 50 220 220]);
+        zoomAx = axes('Parent',zoomFig,'Position',[0 0 1 1]);
+
+        oldWBMF = get(f,'WindowButtonMotionFcn');
+        oldWBDF = get(f,'WindowButtonDownFcn');
+        oldPtr  = get(f,'Pointer');
+
+        set(f,'Pointer','crosshair');
+        set(f,'WindowButtonMotionFcn',@onMove);
+        set(f,'WindowButtonDownFcn',@onClick);
+
+        if ishandle(axTarget)
+            title(axTarget,msgTitle,'Color','y','Interpreter','none');
+        end
+
+        clicks = 0;
+        xTmp = zeros(1,2);
+        yTmp = zeros(1,2);
+
+        uiwait(f);  % ????? ??? ?? onClick ???? uiresume
+
+        % ???? ?? ??? ??? ???
+        if ishandle(f)
+            set(f,'WindowButtonMotionFcn',oldWBMF);
+            set(f,'WindowButtonDownFcn',oldWBDF);
+            set(f,'Pointer',oldPtr);
+        end
+        if ishandle(zoomFig)
+            delete(zoomFig);
+        end
+        if ishandle(axTarget)
+            % ????? ??????? ?????? (?? ???? ??????? ????? ????)
+            if axTarget == axRef
+                title(axTarget,'Reference Image','Color','w');
+            else
+                title(axTarget,'Measurement Image','Color','w');
+            end
+        end
+
+        if clicks == 2
+            xSel = xTmp;
+            ySel = yTmp;
+            ok   = true;
+        else
+            xSel = [];
+            ySel = [];
+            ok   = false;
+        end
+
+        % ---- nested: ???? ?????? ----
+        function onMove(~,~)
+            if isempty(imgTarget) || ~ishandle(axTarget) || ~ishandle(zoomAx)
+                return;
+            end
+
+            C = get(axTarget,'CurrentPoint');
+            cx = round(C(1,1));
+            cy = round(C(1,2));
+
+            if cx<=0 || cy<=0 || ...
+               cx>size(imgTarget,2) || cy>size(imgTarget,1)
+                return;
+            end
+
+            r = 25;
+            x1 = max(1,cx-r);  x2 = min(size(imgTarget,2),cx+r);
+            y1 = max(1,cy-r);  y2 = min(size(imgTarget,1),cy+r);
+
+            zoomCrop = imgTarget(y1:y2, x1:x2, :);
+            zoomCrop = imresize(zoomCrop,5);
+
+            axes(zoomAx);
+            imshow(zoomCrop);
+            hold(zoomAx,'on');
+
+            [hgt,wdt,~] = size(zoomCrop);
+            cxz = wdt/2;
+            cyz = hgt/2;
+            plot(zoomAx,[cxz-8 cxz+8],[cyz cyz],'r-','LineWidth',1.5);
+            plot(zoomAx,[cxz cxz],[cyz-8 cyz+8],'r-','LineWidth',1.5);
+
+            hold(zoomAx,'off');
+        end
+
+        % ---- nested: ???? ?????? ----
+        function onClick(~,~)
+            hObj = hittest(f);
+            axClicked = ancestor(hObj,'axes');
+            if isempty(axClicked) || axClicked ~= axTarget
+                return;
+            end
+
+            C = get(axTarget,'CurrentPoint');
+            cx = C(1,1);
+            cy = C(1,2);
+            xl = xlim(axTarget);
+            yl = ylim(axTarget);
+            if cx<xl(1) || cx>xl(2) || cy<yl(1) || cy>yl(2)
+                return;
+            end
+
+            clicks = clicks + 1;
+            if clicks <= 2
+                xTmp(clicks) = cx;
+                yTmp(clicks) = cy;
+            end
+
+            if clicks >= 2
+                uiresume(f);
             end
         end
     end
@@ -593,5 +609,6 @@ function objs = getKnownObjectsDb()
     objs(7).name      = 'Phone (approx. 15 cm height)';
     objs(7).length_cm = 15.0;
 end
+
 
 
