@@ -1,4 +1,4 @@
-function SmartRuler_TwoOptions
+  function SmartRuler_TwoOptions
 
     f = figure('Name','Smart Ruler - Manual & AI Reference', ...
                'NumberTitle','off', ...
@@ -18,12 +18,14 @@ function SmartRuler_TwoOptions
     uistack(axRef,'bottom');
     uistack(axMeas,'bottom');
 
+    % ====== ???? ?????? (????? ??? ???????) ======
     statusText = uicontrol('Parent',f,'Style','text', ...
-        'Units','normalized', 'Position',[0.05 0.05 0.60 0.10], ...
+        'Units','normalized', 'Position',[0.05 0.24 0.60 0.04], ...
         'String','Step 1/4: Load a reference image.', ...
         'ForegroundColor','w', 'BackgroundColor',[0.2 0.2 0.2], ...
         'HorizontalAlignment','left', 'FontSize',10);
 
+    % ????? ??????
     uicontrol('Parent',f,'Style','pushbutton','String','Load Reference Image', ...
         'Units','normalized','Position',[0.05 0.17 0.19 0.06], ...
         'Callback',@loadRefCallback);
@@ -40,6 +42,7 @@ function SmartRuler_TwoOptions
         'Units','normalized','Position',[0.26 0.10 0.19 0.05], ...
         'Callback',@autoA4RefCallback);
 
+    % ????? ??????
     uicontrol('Parent',f,'Style','pushbutton','String','Load Measurement Image', ...
         'Units','normalized','Position',[0.55 0.17 0.19 0.06], ...
         'Callback',@loadMeasCallback);
@@ -60,6 +63,7 @@ function SmartRuler_TwoOptions
         'Units','normalized','Position',[0.45 0.08 0.10 0.05], ...
         'Callback',@clearAllCallback);
 
+    % ???? ???????
     resultTable = uitable('Parent',f,'Units','normalized', ...
         'Position',[0.55 0.02 0.40 0.07], ...
         'Data',{}, 'ColumnName',{'#','Length'}, ...
@@ -414,7 +418,6 @@ function SmartRuler_TwoOptions
             return;
         end
 
-        % ????? ?????
         zoomFig = figure('Name','Zoom','NumberTitle','off', ...
                          'MenuBar','none','ToolBar','none', ...
                          'Color','k','Position',[50 50 220 220]);
@@ -436,9 +439,8 @@ function SmartRuler_TwoOptions
         xTmp = zeros(1,2);
         yTmp = zeros(1,2);
 
-        uiwait(f);  % ????? ??? ?? onClick ???? uiresume
+        uiwait(f);
 
-        % ???? ?? ??? ??? ???
         if ishandle(f)
             set(f,'WindowButtonMotionFcn',oldWBMF);
             set(f,'WindowButtonDownFcn',oldWBDF);
@@ -448,7 +450,6 @@ function SmartRuler_TwoOptions
             delete(zoomFig);
         end
         if ishandle(axTarget)
-            % ????? ??????? ?????? (?? ???? ??????? ????? ????)
             if axTarget == axRef
                 title(axTarget,'Reference Image','Color','w');
             else
@@ -466,7 +467,6 @@ function SmartRuler_TwoOptions
             ok   = false;
         end
 
-        % ---- nested: ???? ?????? ----
         function onMove(~,~)
             if isempty(imgTarget) || ~ishandle(axTarget) || ~ishandle(zoomAx)
                 return;
@@ -501,7 +501,6 @@ function SmartRuler_TwoOptions
             hold(zoomAx,'off');
         end
 
-        % ---- nested: ???? ?????? ----
         function onClick(~,~)
             hObj = hittest(f);
             axClicked = ancestor(hObj,'axes');
@@ -609,6 +608,4 @@ function objs = getKnownObjectsDb()
     objs(7).name      = 'Phone (approx. 15 cm height)';
     objs(7).length_cm = 15.0;
 end
-
-
 
